@@ -1,118 +1,110 @@
-# 5PSC — 5-Phase Soliton Cipher
+[README (3).md](https://github.com/user-attachments/files/25462557/README.3.md)
+# 5PSC v3.0 — 5-Phase Soliton Cipher
 
-A symmetric stream cipher with a continuously evolving internal state. Five coupled state components interact through generation and inhibition cycles on a 10,000 × 10,000 toroidal grid. The keystream is derived from the differential positions of two mirrored state systems (Yang/Yin).
+A stream cipher based on Wu Xing (Five Phases) dynamical systems operating on a toroidal grid.
 
-**The key exists only at the instant of use. It is not stored, not transmitted, not recoverable.**
+## What This Is
 
-## Why this matters
+An experimental cipher that uses dual evolving dynamical systems (Yang and Yin) as a key-dependent state machine. The internal state continuously evolves through Wu Xing generation/inhibition cycles, producing position-dependent encryption parameters for each byte.
 
-AI agents (OpenClaw, Moltbot, and others) are being banned by enterprises because they transmit sensitive data without adequate encryption. Current symmetric ciphers use static keys that, once compromised, expose everything.
+**This is a research/hobbyist cipher.** It has not undergone formal cryptanalysis. Do not use for protecting real data.
 
-5PSC eliminates this problem: the internal state evolves with every encrypted byte. Even if an attacker captures the state at time T, by time T+1 it has already changed. There is no single secret to steal.
+## What's New in v3.0
 
-## Technical specifications
+Version 3.0 addresses all critical issues identified during independent peer review:
 
-| Property | Value |
-|---|---|
-| Type | Symmetric stream cipher |
-| Seed | 256-bit (CSPRNG) |
-| Internal state | 2 × 5 coupled components on 10,000² toroidal grid |
-| Arithmetic | Integer-only (no floating point) |
-| Non-linearity | Double S-box substitution + feedback chain |
-| State evolution | Every 5 encrypted bytes |
-| Force balance | Governed by α = 1/137 (integer fraction) |
-| Cross-platform | Fully deterministic: same seed → same output, always |
+| Fix | Issue | Solution |
+|-----|-------|----------|
+| FIX-1 | Yang and Yin started from identical state → zero initial divergence | Yin system initialized from domain-separated seed derivation |
+| FIX-2 | 8-bit feedback accumulator → cycles in ≤256 steps | Extended to 32-bit with multiplicative mixing (golden ratio constant) |
+| FIX-3 | Small affine parameter space (~32K) → searchable with known plaintext | Parameters derived from wider organism state via hash mixing |
+| FIX-4 | History array consumed memory with no cryptographic purpose | Removed |
+| FIX-5 | `Math.random()` present in HTML demo seed generation | `crypto.getRandomValues` / `crypto.randomBytes` exclusively |
+| FIX-6 | Biased mult/offset distribution in position factor | Hash-mixed derivation from cross-element state |
 
 ## Architecture
 
 ```
-Seed (256-bit)
-    │
-    ├──→ Yang system (5 state components)
-    ├──→ Yin system (5 state components)
-    │
-    │  ┌─── Generation cycle (component N feeds N+1) ───┐
-    │  │    Inhibition cycle (component N resists N+2)   │
-    │  └─────────────── governed by α = 1/137 ──────────┘
-    │
-    ▼
-Position differential (Yang vs Yin)
-    │
-    ├──→ Affine transformation (position-dependent)
-    ├──→ Double S-box substitution
-    ├──→ Feedback chain (each byte affects the next)
-    │
-    ▼
-Keystream byte
+256-bit seed ──┬──────────────────→ Yang system (5 organisms on 10K×10K torus)
+               └── deriveYinSeed() → Yin system  (5 organisms, different positions)
+                        │
+                    warmup(N) ← organisms evolve N steps before encryption
+                        │
+              ┌─────────┴─────────┐
+              │  For each byte:   │
+              │  1. Position factor from Yang/Yin differential │
+              │  2. Affine transform (mult, offset)           │
+              │  3. S-box substitution ×2                     │
+              │  4. XOR with position-dependent mask           │
+              │  5. 32-bit feedback update                     │
+              │  6. Every 5 bytes: organisms evolve            │
+              └───────────────────┘
 ```
 
-**State evolution is continuous**: every 5 bytes, all 10 components move according to generation/inhibition forces, environmental noise from neighboring components, and toroidal boundary conditions. The state at byte 1000 depends on the complete history of bytes 0–999.
+## Usage
 
-## Security properties
-
-- **No static key**: internal state changes with every encryption operation
-- **Path-dependent**: state at any point depends on entire encryption history
-- **No key persistence**: nothing stored before or after encryption
-- **Brute force**: 256-bit seed = 2²⁵⁶ possible states (~10⁷⁷)
-- **Non-linear mixing**: double S-box + affine transform + feedback eliminates linear correlation
-
-## Known limitations (v2.1)
-
-- **No AEAD**: authentication/integrity verification not yet implemented (planned v3)
-- **No explicit IV/nonce**: warmup parameter serves as nonce but should be formalized
-- **S-box timing**: not constant-time; production implementation should use ARX or constant-time lookups
-- **No formal cryptanalysis**: community code review completed, full cryptanalysis pending
-
-## Quick start
-
-```bash
-node 5PSC_v2_1.js
-```
-
-Runs self-test: 4 message tests + seed uniqueness + determinism verification.
-
-## API
-
+### JavaScript (Node.js)
 ```javascript
-// Encrypt
-var result = encrypt("your message", 100, seed256);
-// result.hex = ciphertext in hex
+var psc = require('./5PSC_v3.js');
 
-// Decrypt
-var plaintext = decrypt(result.hex, 100, seed256);
+var seed = psc.generateSeed256();  // 256-bit CSPRNG seed
+var encrypted = psc.encrypt("Hello World", 100, seed);
+var decrypted = psc.decrypt(encrypted.hex, 100, seed);
 
-// Generate secure seed
-var seed = generateSeed256();  // 8 × 32-bit from CSPRNG
+console.log(encrypted.hex);   // ciphertext as hex
+console.log(decrypted);       // "Hello World"
 ```
 
-## Use cases
+### JavaScript (Browser)
+```html
+<script src="5PSC_v3.js"></script>
+<script>
+  var seed = PSC5.generateSeed256();
+  var enc = PSC5.encrypt("Hello World", 100, seed);
+  var dec = PSC5.decrypt(enc.hex, 100, seed);
+</script>
+```
 
-- **AI agent communication**: protect data transmitted by autonomous agents (OpenClaw, custom LLM agents)
-- **Ephemeral messaging**: messages where the key must not survive the session
-- **IoT device encryption**: lightweight stream cipher for constrained environments
-- **Zero-persistence systems**: compliance with data regulations requiring no key storage
+### Python
+```python
+from psc5_v3 import encrypt, decrypt, random_seed
 
-## Version history
+seed = random_seed()
+cipher = encrypt("Hello World", 100, seed)
+plain = decrypt(cipher, 100, seed)
+```
 
-See [CHANGELOG.md](CHANGELOG.md)
+## Known Limitations
 
-## Community review
+These are documented since v1 and remain in v3:
 
-This cipher was publicly reviewed on CryptoHack Discord (February 20, 2026). Issues identified and fixed:
+- **No AEAD** — no integrity protection. Bit-flipping attacks are possible.
+- **No nonce/IV** — same seed + same message = same ciphertext. Classic stream cipher weakness.
+- **S-box not formally analyzed** — generated from π via Fisher-Yates. No differential/linear uniformity proof.
+- **Not constant-time** — S-box lookups and branches are timing-observable. Side-channel exploitable.
+- **No formal cryptanalysis** — security level is genuinely unknown until a professional cryptanalyst attempts to break it.
 
-| Issue | Found by | Status |
-|---|---|---|
-| `Math.random()` in seed generation | /dev/nvme0n1 | Fixed v2.0 |
-| Floating point arithmetic | 6... | Fixed v2.1 |
-| Missing AEAD | /dev/nvme0n1 | Planned v3 |
-| Missing IV/nonce | /dev/nvme0n1 | Planned v3 |
-| S-box timing vulnerability | CryptoHack community | Planned v3 (ARX migration) |
+## Version History
 
-## Built by
+| Version | Date | Changes |
+|---------|------|---------|
+| v1.0 | Jan 2026 | Initial implementation with floating-point arithmetic |
+| v2.0 | Feb 2026 | Integer arithmetic, CSPRNG seed, double S-box. Based on CryptoHack/Reddit feedback |
+| v2.1 | Feb 2026 | Bug fixes from /dev/nvme0n1 review |
+| v3.0 | Feb 2026 | Critical fixes from independent peer review (6 issues addressed) |
 
-A farmer from Mount Etna (Sicily) and Claude (Anthropic).
-Tested by the CryptoHack Discord community.
+## Academic Paper
+
+See [ePrint IACR 2026/107945](https://eprint.iacr.org/2026/107945) (covers v2 architecture; v3 changelog pending update).
+
+## Philosophy
+
+The cipher's design draws from the Wu Xing (五行) cycle of Chinese natural philosophy and the fine-structure constant α ≈ 1/137 as a coupling parameter. These are design choices, not security claims — the cryptographic strength comes from the mathematical properties of the system, not from the physical constants.
 
 ## License
 
-Free for everyone. No restrictions.
+MIT
+
+## Authors
+
+Quintilio Menicocci & Claude (Anthropic)

@@ -1,4 +1,3 @@
-[README (3).md](https://github.com/user-attachments/files/25462557/README.3.md)
 # 5PSC v3.0 — 5-Phase Soliton Cipher
 
 A stream cipher based on Wu Xing (Five Phases) dynamical systems operating on a toroidal grid.

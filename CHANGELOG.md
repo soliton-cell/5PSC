@@ -1,42 +1,37 @@
 # Changelog
 
-## v2.1 — February 21, 2026
-**Integer-Only Edition** — all floating point removed for cross-platform determinism.
+## v3.0.0 (2026-02-22)
 
-### Fixed
-- `Math.sqrt()` → Manhattan distance (integer)
-- Float division → integer arithmetic scaled by 1000
-- `ALPHA` float → integer fraction `1/137`
+Based on independent peer review of v2.1 code and documentation.
 
-### Credits
-- Floating point issue identified by **6...** (CryptoHack Discord)
+### Critical Fixes
+- **FIX-1**: Yin system now initialized from domain-separated seed derivation. Previously both Yang and Yin started from identical state with zero initial divergence. The `deriveYinSeed()` function XORs the original seed with a domain separator ("YIN!") and applies three rounds of hash mixing with cross-word dependencies.
+- **FIX-2**: Feedback accumulator extended from 8-bit (mod 256) to 32-bit with multiplicative mixing using golden ratio constant (0x9E3779B1). Previous 8-bit accumulator cycled in ≤256 steps.
+- **FIX-3**: Position factor parameters now derived from wider organism state. Previous implementation used raw mod-256 of position differences, yielding ~32K possible affine transforms. Now uses hash-mixed cross-element state with three independent derivation paths.
 
----
+### Improvements  
+- **FIX-4**: Removed history array from organisms (60-position buffer that served no cryptographic purpose).
+- **FIX-5**: HTML demo seed generation now uses `crypto.getRandomValues` exclusively. `Math.random()` was present in v2 HTML demo.
+- **FIX-6**: Improved mult/offset distribution via `hashMix()` applied to gathered state, producing near-uniform distribution across 8-bit range.
 
-## v2.0 — February 20, 2026
-**Public release** on CryptoHack Discord.
+### New Features
+- `offset2` parameter in position factor for XOR step independence
+- `feedbackMix()` and `feedbackByte()` exported for testing
+- `deriveYinSeed()` exported for verification
 
-### Fixed (from community feedback)
-- `Math.random()` → `crypto.getRandomValues()` / `crypto.randomBytes()` (CSPRNG)
+## v2.1.0 (2026-02-19)
 
-### Previous fixes over v1
-- Seed expanded from 32-bit to 256-bit
-- Double S-box + feedback chain (breaks linearity)
-- Organisms evolve during encryption, not just warmup
+- Bug fixes from /dev/nvme0n1 review on CryptoHack
+- Integer-only arithmetic (no floating-point in crypto path)
 
-### Credits
-- `Math.random()` vulnerability identified by **/dev/nvme0n1** (CryptoHack Discord)
-- AEAD absence noted by **/dev/nvme0n1**
-- IV/nonce absence noted by **/dev/nvme0n1**
-- ARX suggestion (over S-box) by **/dev/nvme0n1**
-- S-box timing attack concern by **You ⚡+W** (CryptoHack Discord)
+## v2.0.0 (2026-02-18)
 
----
+- CSPRNG seed generation (crypto.getRandomValues)
+- Double S-box substitution
+- Continuous organism evolution during encryption
 
-## v1.0 — February 19, 2026
-Initial version. Prior art certified via PEC (Italian certified email).
+## v1.0.0 (2026-01-23)
 
-### Known issues (fixed in v2)
-- 32-bit seed (brute-forceable)
-- Single S-box (linear)
-- Static organisms during encryption
+- Initial implementation
+- Floating-point arithmetic
+- Single S-box

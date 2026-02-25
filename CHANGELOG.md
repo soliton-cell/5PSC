@@ -1,37 +1,57 @@
 # Changelog
 
-## v3.0.0 (2026-02-22)
+All notable changes to 5PSC are documented here.
 
-Based on independent peer review of v2.1 code and documentation.
+## [4.0] — 2026-02-25
 
-### Critical Fixes
-- **FIX-1**: Yin system now initialized from domain-separated seed derivation. Previously both Yang and Yin started from identical state with zero initial divergence. The `deriveYinSeed()` function XORs the original seed with a domain separator ("YIN!") and applies three rounds of hash mixing with cross-word dependencies.
-- **FIX-2**: Feedback accumulator extended from 8-bit (mod 256) to 32-bit with multiplicative mixing using golden ratio constant (0x9E3779B1). Previous 8-bit accumulator cycled in ≤256 steps.
-- **FIX-3**: Position factor parameters now derived from wider organism state. Previous implementation used raw mod-256 of position differences, yielding ~32K possible affine transforms. Now uses hash-mixed cross-element state with three independent derivation paths.
+Complete redesign of cryptographic layer in response to GMO_Goat's cryptanalysis.
 
-### Improvements  
-- **FIX-4**: Removed history array from organisms (60-position buffer that served no cryptographic purpose).
-- **FIX-5**: HTML demo seed generation now uses `crypto.getRandomValues` exclusively. `Math.random()` was present in v2 HTML demo.
-- **FIX-6**: Improved mult/offset distribution via `hashMix()` applied to gathered state, producing near-uniform distribution across 8-bit range.
+### Changed
+- **Position factors:** Now derived from SHA-256 hash of all 40 organism state variables + byte position + feedback state. Previously used 3 organism pairs mod 256 (8-bit brute-forceable).
+- **S-box:** Replaced Fisher-Yates/π permutation (65% linearity) with standard AES S-box (max linear probability 2^-3, max differential probability 2^-6).
+- **Feedback accumulator:** 64-bit non-invertible mixing replaces 32-bit invertible accumulator. Uses golden ratio constant (0x9E3779B97F4A7C15) and SplitMix64-style mixing.
+- **Nonce:** Formal 128-bit random nonce, mixed into seed via SHA-256. Replaces warmup-rounds-as-nonce approach.
+- **Interface:** Bytes-in/bytes-out. No string encoding assumptions.
 
-### New Features
-- `offset2` parameter in position factor for XOR step independence
-- `feedbackMix()` and `feedbackByte()` exported for testing
-- `deriveYinSeed()` exported for verification
+### Added
+- `derive_session_key()` — seed + nonce → SHA-256 → session key
+- `_state_to_bytes()` — serializes all 10 organisms for hashing
+- GMO_Goat attack resistance test in self-test suite
+- Double S-box application with extra mixing byte
 
-## v2.1.0 (2026-02-19)
+### Credits
+- **GMO_Goat** (CryptoHack Discord) — Position factor brute force, S-box linearity analysis, hash invertibility, known-plaintext attack demonstration. Clean, precise, professional cryptanalysis. v4 exists because of this work.
+- **__cdeclan** (CryptoHack Discord) — Suggested aligning with FIPS AES standards. AES S-box adopted in v4.
+- **nikost** (CryptoHack Discord) — Identified hallucinated eprint link in README. Fixed.
 
-- Bug fixes from /dev/nvme0n1 review on CryptoHack
-- Integer-only arithmetic (no floating-point in crypto path)
+---
 
-## v2.0.0 (2026-02-18)
+## [2.1] — 2026-02-19
 
-- CSPRNG seed generation (crypto.getRandomValues)
-- Double S-box substitution
-- Continuous organism evolution during encryption
+Public release on GitHub. Posted to CryptoHack Discord for analysis.
 
-## v1.0.0 (2026-01-23)
+### Known vulnerabilities (found by community)
+- Position factors brute-forceable: 8-bit mult/offset recoverable with 3-5 known-plaintext pairs
+- π-derived S-box has 65% linearity (should be ≤50%)
+- 32-bit feedback accumulator is invertible
+- No formal nonce — warmup rounds used as de facto nonce
 
-- Initial implementation
-- Floating-point arithmetic
-- Single S-box
+### Credits
+- **/dev/nvme0n1** — Found Math.random() in seed generation (v2.0)
+- **6...** — Found floating-point arithmetic issues
+
+---
+
+## [2.0] — 2026-02-18
+
+First implementation. Integer arithmetic, Wu Xing dynamics, π-derived S-box.
+
+---
+
+## [1.0] — 2026-02-17
+
+Concept. Five-element dynamic system generating keystream.
+
+---
+
+*Every break makes the next version real.*

@@ -1,109 +1,98 @@
-# 5PSC v3.0 — 5-Phase Soliton Cipher
+# 5PSC — 5-Phase Soliton Cipher
 
-A stream cipher based on Wu Xing (Five Phases) dynamical systems operating on a toroidal grid.
+A stream cipher based on Wu Xing (五行) dynamic system — five interacting organisms whose perpetual-cycle dynamics generate cryptographic keystream.
 
-## What This Is
+**Author:** Soliton Cipher (Mount Etna, Sicily)  
+**Prior art:** Certified email (PEC), February 19, 2026  
+**License:** Free for everyone. No restrictions.  
+**Current version:** v4.0
 
-An experimental cipher that uses dual evolving dynamical systems (Yang and Yin) as a key-dependent state machine. The internal state continuously evolves through Wu Xing generation/inhibition cycles, producing position-dependent encryption parameters for each byte.
+---
 
-**This is a research/hobbyist cipher.** It has not undergone formal cryptanalysis. Do not use for protecting real data.
+## What is this?
 
-## What's New in v3.0
+5PSC is an experimental cipher that uses a biological-dynamic model instead of algebraic constructions. Ten organisms (5 Yang, 5 Yin) move on a toroidal grid following generation/inhibition cycles derived from Wu Xing (Five Elements) theory. Their positions, velocities, and interactions produce position-dependent encryption parameters for each byte.
 
-Version 3.0 addresses all critical issues identified during independent peer review:
+This is **not** a replacement for AES. It is an exploration of whether perpetual-cycle dynamics from a different mathematical tradition can generate useful cryptographic properties.
 
-| Fix | Issue | Solution |
-|-----|-------|----------|
-| FIX-1 | Yang and Yin started from identical state → zero initial divergence | Yin system initialized from domain-separated seed derivation |
-| FIX-2 | 8-bit feedback accumulator → cycles in ≤256 steps | Extended to 32-bit with multiplicative mixing (golden ratio constant) |
-| FIX-3 | Small affine parameter space (~32K) → searchable with known plaintext | Parameters derived from wider organism state via hash mixing |
-| FIX-4 | History array consumed memory with no cryptographic purpose | Removed |
-| FIX-5 | `Math.random()` present in HTML demo seed generation | `crypto.getRandomValues` / `crypto.randomBytes` exclusively |
-| FIX-6 | Biased mult/offset distribution in position factor | Hash-mixed derivation from cross-element state |
+## Why?
 
-## Architecture
+Most ciphers derive security from algebraic hardness (factoring, discrete log, lattice problems). 5PSC asks a different question: **can a deterministic dynamic system with sensitive dependence on initial conditions produce cryptographically useful output?**
+
+The answer so far: v2.1 proved it couldn't — yet. Community cryptanalysis on CryptoHack Discord exposed fundamental weaknesses. v4 addresses those weaknesses with proven primitives (AES S-box, SHA-256) while preserving the dynamic core.
+
+The honest answer to "what advantage does this have over existing approaches" is: **none proven**. The advantage is the question itself. If dynamic-system ciphers can work, they open a design space that algebraic ciphers don't explore.
+
+## v4.0 Architecture
+
+### What changed from v2.1 (and why)
+
+| Component | v2.1 (broken) | v4.0 | Attack it fixes |
+|-----------|---------------|------|-----------------|
+| Position factors | 3 organism pairs mod 256 → 8-bit | SHA-256 of all 40 state variables | GMO_Goat: brute-force with 3-5 known-plaintext pairs |
+| S-box | Fisher-Yates/π permutation | AES S-box (Rijndael) | GMO_Goat: 65% linearity |
+| Feedback | 32-bit, invertible | 64-bit, non-invertible mixing | GMO_Goat: hash invertibility |
+| Nonce | Warmup rounds as nonce | 128-bit random, SHA-256 mixed | Formal nonce separation |
+| Interface | String in/out | Bytes in/out | No encoding assumptions |
+
+### Encryption pipeline (per byte)
 
 ```
-256-bit seed ──┬──────────────────→ Yang system (5 organisms on 10K×10K torus)
-               └── deriveYinSeed() → Yin system  (5 organisms, different positions)
-                        │
-                    warmup(N) ← organisms evolve N steps before encryption
-                        │
-              ┌─────────┴─────────┐
-              │  For each byte:   │
-              │  1. Position factor from Yang/Yin differential │
-              │  2. Affine transform (mult, offset)           │
-              │  3. S-box substitution ×2                     │
-              │  4. XOR with position-dependent mask           │
-              │  5. 32-bit feedback update                     │
-              │  6. Every 5 bytes: organisms evolve            │
-              └───────────────────┘
+plaintext[i] → XOR feedback → affine(mult, offset) → SBOX → SBOX(+extra+fb) → XOR offset2 → ciphertext[i]
 ```
+
+### Dynamic core
+
+- 10 organisms on 10000×10000 toroidal grid
+- Generation cycle: Wood→Fire→Earth→Metal→Water→Wood
+- Inhibition cycle: Wood→Earth, Fire→Metal, Earth→Water, Metal→Wood, Water→Fire
+- Force scaling: α = 1/137 (fine-structure constant)
+- Organisms evolve every 5 bytes
+
+### Key derivation
+
+```
+seed256 (256-bit) + nonce (128-bit) → SHA-256 → session_key
+session_key → domain separation → yin_key
+```
+
+## Files
+
+- `5PSC_v4.py` — Complete implementation with self-test
+- `README.md` — This file
+- `CHANGELOG.md` — Version history and credits
 
 ## Usage
 
-### JavaScript (Node.js)
-```javascript
-var psc = require('./5PSC_v3.js');
-
-var seed = psc.generateSeed256();  // 256-bit CSPRNG seed
-var encrypted = psc.encrypt("Hello World", 100, seed);
-var decrypted = psc.decrypt(encrypted.hex, 100, seed);
-
-console.log(encrypted.hex);   // ciphertext as hex
-console.log(decrypted);       // "Hello World"
+```bash
+python3 5PSC_v4.py
 ```
 
-### JavaScript (Browser)
-```html
-<script src="5PSC_v3.js"></script>
-<script>
-  var seed = PSC5.generateSeed256();
-  var enc = PSC5.encrypt("Hello World", 100, seed);
-  var dec = PSC5.decrypt(enc.hex, 100, seed);
-</script>
-```
+Runs self-test: encrypt/decrypt roundtrip, nonce uniqueness, determinism, and GMO_Goat attack resistance simulation.
 
-### Python
-```python
-from psc5_v3 import encrypt, decrypt, random_seed
+## Known limitations
 
-seed = random_seed()
-cipher = encrypt("Hello World", 100, seed)
-plain = decrypt(cipher, 100, seed)
-```
+- **Not peer-reviewed.** This is an experimental cipher posted for public analysis.
+- **Performance:** ~47 KB/s in Python. The dynamic system is computationally expensive.
+- **No formal security proof.** The security relies on the difficulty of recovering 10-organism state (~530 bits) from ciphertext, which has not been formally analyzed.
+- **Hybrid design.** v4 relies on AES S-box and SHA-256 for proven non-linearity. The dynamic core alone is not sufficient.
 
-## Known Limitations
+## How to break it
 
-These are documented since v1 and remain in v3:
+If you want to attack v4, the interesting targets are:
 
-- **No AEAD** — no integrity protection. Bit-flipping attacks are possible.
-- **No nonce/IV** — same seed + same message = same ciphertext. Classic stream cipher weakness.
-- **S-box not formally analyzed** — generated from π via Fisher-Yates. No differential/linear uniformity proof.
-- **Not constant-time** — S-box lookups and branches are timing-observable. Side-channel exploitable.
-- **No formal cryptanalysis** — security level is genuinely unknown until a professional cryptanalyst attempts to break it.
+1. **State recovery:** Can you recover organism positions from ciphertext + known plaintext, even with SHA-256 position factors?
+2. **Dynamic system analysis:** Do the Wu Xing dynamics have attractors or cycles that reduce the effective state space?
+3. **Feedback weakness:** Is the 64-bit feedback accumulator distinguishable from random after enough ciphertext?
 
-## Version History
+Pull requests with analysis welcome. If you break it, you get credited in CHANGELOG and fed on Mount Etna. 🌋
 
-| Version | Date | Changes |
-|---------|------|---------|
-| v1.0 | Jan 2026 | Initial implementation with floating-point arithmetic |
-| v2.0 | Feb 2026 | Integer arithmetic, CSPRNG seed, double S-box. Based on CryptoHack/Reddit feedback |
-| v2.1 | Feb 2026 | Bug fixes from /dev/nvme0n1 review |
-| v3.0 | Feb 2026 | Critical fixes from independent peer review (6 issues addressed) |
+## Credits & Community
 
-## Academic Paper
+This cipher exists because of public cryptanalysis on [CryptoHack Discord](https://discord.gg/cryptohack). Built with Claude (Anthropic) as a collaborative tool — the human decides what to build, the AI helps implement.
 
-See [ePrint IACR 2026/107945](https://eprint.iacr.org/2026/107945) (covers v2 architecture; v3 changelog pending update).
+See [CHANGELOG.md](CHANGELOG.md) for full credits.
 
-## Philosophy
+---
 
-The cipher's design draws from the Wu Xing (五行) cycle of Chinese natural philosophy and the fine-structure constant α ≈ 1/137 as a coupling parameter. These are design choices, not security claims — the cryptographic strength comes from the mathematical properties of the system, not from the physical constants.
-
-## License
-
-MIT
-
-## Authors
-
-Quintilio Menicocci & Claude (Anthropic)
+*Q-Principle Research · Mount Etna, Sicily · 2026*
